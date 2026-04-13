@@ -1,0 +1,11 @@
+torch
+transformers>=4.38.0
+peft
+sentence-transformers
+pandas
+numpy
+tqdm
+sqlalchemy
+psycopg2-binary
+pyyaml
+faiss-cpu

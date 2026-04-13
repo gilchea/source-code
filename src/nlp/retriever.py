@@ -6,13 +6,13 @@ from typing import List, Dict, Any
 class SchemaRetriever:
     """Retrieves similar examples (few-shot) from a local dataset pool."""
     
-    def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5", device: str = "cpu", share_model = None  ):
+    def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5", device: str = "cpu", shared_model = None  ):
         # self.model = SentenceTransformer(model_name, device=device)
-        if share_model is not None:
-            self.model = share_model
+        if shared_model is not None:
+            self.model = shared_model
         else:
             self.model = SentenceTransformer(model_name, device=device)
-            
+
         self.device = device
         self.index = None
         self.pool = []

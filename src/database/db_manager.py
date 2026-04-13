@@ -1,7 +1,7 @@
 import os
 import sqlite3
 import logging
-from sqlalchemy import create_engine, Engine
+from sqlalchemy import create_engine, Engine, text
 from typing import List, Tuple, Any
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class DBManager:
         engine = self.get_engine(db_id)
         try:
             with engine.connect() as connection:
-                result = connection.execute(query)
+                result = connection.execute(text(query))
                 return True, [row for row in result]
         except Exception as e:
             logger.error(f"Error executing query on {db_id}: {e}")
@@ -45,3 +45,9 @@ class DBManager:
             
         # Comparison of results (set-based to ignore order if not specified)
         return set(res_p) == set(res_g)
+
+    def close(self):
+        """Disposes of all cached engines to free file handles."""
+        for engine in self.engines.values():
+            engine.dispose()
+        self.engines.clear()

@@ -8,7 +8,11 @@ from torch.optim import AdamW
 logger = logging.getLogger(__name__)
 
 class SQLDataset(Dataset):
-    """Simple dataset for SQL fine-tuning."""
+    """Simple dataset for SQL fine-tuning.
+    every sample is a pair of (prompt, target)
+    every target is a sql query
+    every prompt is a text description of the sql query
+    """
     def __init__(self, samples: List[Dict[str, Any]], prompt_builder, schema_text: str):
         self.samples = samples
         self.prompt_builder = prompt_builder
@@ -31,6 +35,13 @@ class VirtualClient:
     """Simulates a Federated Learning client with a private database."""
     
     def __init__(self, client_id: str, engine, db_manager, prompt_builder, retriever):
+        """
+        client_id: id of the client
+        engine: the LLM engine
+        db_manager: the database manager
+        prompt_builder: the prompt builder
+        retriever: the retriever
+        """
         self.client_id = client_id
         self.engine = engine
         self.db_manager = db_manager

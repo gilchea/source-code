@@ -1,2 +1,6 @@
 .venv
 __pycache__/
+PROJECT_ACHITECTURE_TEMPLATE/
+PROJECT_ACHITECTURE_TEMPLATE/Light-SQL
+spider_data/
+docs/[outline]-LightFed-SQL.pdf

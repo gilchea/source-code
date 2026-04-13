@@ -2,7 +2,8 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from typing import List, Dict, Any
 import logging
-from transformers import AdamW
+# from transformers import AdamW
+from torch.optim import AdamW
 
 logger = logging.getLogger(__name__)
 

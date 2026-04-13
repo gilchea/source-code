@@ -1,5 +1,6 @@
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, AutoConfig
+# from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 import logging
 
@@ -7,16 +8,24 @@ logger = logging.getLogger(__name__)
 
 class SLMEngine:
     """Handles loading Small Language Models and managing LoRA adapters."""
-    
     def __init__(self, model_id: str, device: str = "cuda", use_4bit: bool = True):
         self.model_id = model_id
         self.device = device
         self.tokenizer = AutoTokenizer.from_pretrained(model_id)
-        # Fix for some models that don't have a pad_token
+        
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
-            
-        # Quantization config
+
+        # --- FIX LỖI KEYERROR 'TYPE' TẠI ĐÂY ---
+        config = AutoConfig.from_pretrained(model_id, trust_remote_code=True)
+        if hasattr(config, "rope_scaling"):
+            # Cách an toàn nhất: Nếu có rope_scaling mà gây lỗi, ta gán None 
+            # để model dùng cấu hình mặc định ban đầu
+            config.rope_scaling = None
+        # Cấu hình Attention để tránh lỗi Flash Attention
+        # attn_imp = "eager" # Dùng eager để ổn định nhất trên Colab/GPU phổ thông
+        # ---------------------------------------
+
         bnb_config = None
         if use_4bit and device != "cpu":
             bnb_config = BitsAndBytesConfig(
@@ -28,14 +37,16 @@ class SLMEngine:
 
         self.model = AutoModelForCausalLM.from_pretrained(
             model_id,
+            config=config, # Truyền config đã fix vào đây
             quantization_config=bnb_config,
             device_map="auto" if device != "cpu" else None,
-            trust_remote_code=True
+            trust_remote_code=True,
+            attn_implementation='eager' 
         )
         
         if use_4bit and device != "cpu":
             self.model = prepare_model_for_kbit_training(self.model)
-
+            
     def apply_lora(self, r: int = 16, lora_alpha: int = 32, lora_dropout: float = 0.05):
         """Applies LoRA configuration to the model."""
         target_modules = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]

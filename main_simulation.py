@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # --- CONFIGURATION ---
 CONFIG = {
     "model_id": "microsoft/Phi-3-mini-4k-instruct",
-    "data_dir": "./spider_data",
+    "data_dir": "/content/source-code/spider_data",
     "num_rounds": 10,
     "fraction": 0.05, # % of clients per round
     "local_epochs": 1,

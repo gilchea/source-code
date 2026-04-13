@@ -30,7 +30,7 @@ class SpiderProcessor:
             return {}
         return {item['db_id']: item for item in data}
 
-    def get_federated_data((self, split: str = 'train')) -> Dict[str, List[Dict[str, Any]]]:
+    def get_federated_data(self, split: str = 'train') -> Dict[str, List[Dict[str, Any]]]:
         """Groups samples by db_id to simulate clients."""
         if split == 'train':
             files = [os.path.join(self.data_dir, f) for f in self.train_files]

@@ -81,12 +81,43 @@ class VirtualClient:
             
         return weights
 
+    # def local_train(self, epochs: int = 1, lr: float = 5e-5, batch_size: int = 4):
+    #     """Performs local fine-tuning on client data."""
+    #     self.engine.model.train()
+    #     optimizer = AdamW(self.engine.model.parameters(), lr=lr)
+        
+    #     # Simple colate for text
+    #     dataloader = DataLoader(self.dataset, batch_size=batch_size, shuffle=True)
+        
+    #     for epoch in range(epochs):
+    #         total_loss = 0
+    #         for batch in dataloader:
+    #             optimizer.zero_grad()
+                
+    #             # Tokenize batch
+    #             inputs = self.engine.tokenizer(
+    #                 [p + t for p, t in zip(batch['prompt'], batch['target'])],
+    #                 padding=True,
+    #                 truncation=True,
+    #                 return_tensors="pt"
+    #             ).to(self.engine.device)
+                
+    #             # Mask prompt from loss calculation (optional but standard)
+    #             outputs = self.engine.model(**inputs, labels=inputs["input_ids"])
+    #             loss = outputs.loss
+                
+    #             loss.backward()
+    #             optimizer.step()
+    #             total_loss += loss.item()
+                
+    #         logger.info(f"Client {self.client_id} - Epoch {epoch+1}/{epochs} - Loss: {total_loss/len(dataloader):.4f}")
     def local_train(self, epochs: int = 1, lr: float = 5e-5, batch_size: int = 4):
         """Performs local fine-tuning on client data."""
         self.engine.model.train()
+        # Di chuyển optimizer vào trong để đảm bảo nó được khởi tạo mới cho mỗi client
+        # (Standard Federated Learning)
         optimizer = AdamW(self.engine.model.parameters(), lr=lr)
         
-        # Simple colate for text
         dataloader = DataLoader(self.dataset, batch_size=batch_size, shuffle=True)
         
         for epoch in range(epochs):
@@ -94,24 +125,26 @@ class VirtualClient:
             for batch in dataloader:
                 optimizer.zero_grad()
                 
-                # Tokenize batch
                 inputs = self.engine.tokenizer(
                     [p + t for p, t in zip(batch['prompt'], batch['target'])],
                     padding=True,
                     truncation=True,
+                    max_length=512, # Giới hạn max_length để tránh OOM
                     return_tensors="pt"
                 ).to(self.engine.device)
                 
-                # Mask prompt from loss calculation (optional but standard)
                 outputs = self.engine.model(**inputs, labels=inputs["input_ids"])
                 loss = outputs.loss
-                
                 loss.backward()
                 optimizer.step()
                 total_loss += loss.item()
                 
             logger.info(f"Client {self.client_id} - Epoch {epoch+1}/{epochs} - Loss: {total_loss/len(dataloader):.4f}")
-
+        
+        # --- QUAN TRỌNG: Giải phóng bộ nhớ sau khi train xong một client ---
+        del optimizer
+        torch.cuda.empty_cache()
+        
     def evaluate(self) -> Dict[str, float]:
         """Evaluates model performance on local data using Execution Accuracy."""
         self.engine.model.eval()

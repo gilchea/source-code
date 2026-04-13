@@ -2,6 +2,7 @@ import os
 import logging
 from tqdm import tqdm
 import torch
+from sentence_transformers import SentenceTransformer
 
 from src.loaders.spider_processor import SpiderProcessor
 from src.database.db_manager import DBManager
@@ -39,6 +40,9 @@ def main():
     train_fed_data = processor.get_federated_data(split='train')
     dev_fed_data = processor.get_federated_data(split='dev')
     
+    # 1. Khởi tạo model embedding duy nhất một lần
+    shared_embedding_model = SentenceTransformer("BAAI/bge-small-en-v1.5", device=CONFIG["device"])
+
     # 2. Setup Central Components
     db_manager = DBManager(os.path.join(CONFIG["data_dir"], "database"))
     engine = SLMEngine(CONFIG["model_id"], device=CONFIG["device"])
@@ -48,13 +52,13 @@ def main():
     tracker = MetricsTracker("./results")
     prompt_builder = PromptBuilder()
 
-    # 3. Initialize Virtual Clients
+    # # 3. Initialize Virtual Clients
     logger.info(f"Setting up {len(train_fed_data)} virtual clients...")
     clients = {}
     for db_id, samples in train_fed_data.items():
-        # Each client gets its own retriever instance for local indexing
-        retriever = SchemaRetriever(device=CONFIG["device"])
-        client = VirtualClient(db_id, engine, db_manager, prompt_builder, retriever)
+        # DÙNG CHUNG shared_embedding_model
+        local_retriever = SchemaRetriever(device=CONFIG["device"], shared_model=shared_embedding_model)
+        client = VirtualClient(db_id, engine, db_manager, prompt_builder, local_retriever)
         client.setup(samples, processor.get_schema_for_client(db_id))
         clients[db_id] = client
 
@@ -68,6 +72,10 @@ def main():
         
         updates = []
         sample_counts = []
+
+        # # Server Aggregation
+        # server.aggregate(updates, sample_counts)
+        # torch.cuda.empty_cache() # GIẢI PHÓNG BỘ NHỚ
         
         # Local Training
         for cid in tqdm(selected_client_ids, desc="Local Training"):
@@ -88,30 +96,21 @@ def main():
 
         # Server Aggregation
         server.aggregate(updates, sample_counts)
+        torch.cuda.empty_cache() # GIẢI PHÓNG BỘ NHỚ
         
         # Evaluation (every round or every few rounds)
+        # Evaluation
         if r % 1 == 0:
             logger.info("Evaluating global model...")
-            total_acc = 0
-            # Test on a small subset of dev clients for speed
             test_clients = list(dev_fed_data.keys())[:10]
             for t_cid in test_clients:
                 if t_cid not in clients:
-                    # Initialize test-only client if needed
-                    retriever = SchemaRetriever(device=CONFIG["device"])
+                    # LƯU Ý: Vẫn dùng shared_embedding_model ở đây
+                    retriever = SchemaRetriever(device=CONFIG["device"], shared_model=shared_embedding_model)
                     client = VirtualClient(t_cid, engine, db_manager, prompt_builder, retriever)
                     client.setup(dev_fed_data[t_cid], processor.get_schema_for_client(t_cid))
                     clients[t_cid] = client
-                
-                client = clients[t_cid]
-                client.set_weights(server.global_weights)
-                res = client.evaluate()
-                total_acc += res["execution_accuracy"]
-            
-            avg_acc = total_acc / len(test_clients)
-            logger.info(f"Round {r} Average Execution Accuracy: {avg_acc:.4f}")
-            tracker.log_round(r, {"avg_exec_acc": avg_acc, "clients_participated": len(selected_client_ids)})
-
+                    
     # Final Save
     server.save_checkpoint("./results/global_model_final.pt")
     logger.info("Simulation completed!")
